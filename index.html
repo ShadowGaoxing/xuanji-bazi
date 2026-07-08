@@ -684,41 +684,130 @@ function renderDayun(dayun){
   }
 }
 
-// 格局分析
+// 格局分析引擎
 function renderGeju(pillars, elements, 日干, 日主五行){
   const container = document.getElementById('geju');
   const lines = [];
+  const 年支 = pillars[0].zhi, 月支 = pillars[1].zhi, 日支 = pillars[2].zhi, 时支 = pillars[3].zhi;
+  const allZhi = [年支,月支,日支,时支];
+  const allGan = [pillars[0].gan,pillars[1].gan,pillars[2].gan,pillars[3].gan];
   
-  // 五行平衡
+  // ── 五行基础 ──
   const counts = Object.entries(elements).sort((a,b)=>b[1]-a[1]);
-  const max = counts[0];
-  const min = counts[counts.length-1];
-  lines.push(`五行分布：${Object.entries(elements).map(([k,v])=>`${k}${v}`).join('：')}`);
-  if(min[1]===0) lines.push(`⚠️ 缺${min[0]}，可考虑补${min[0]}平衡`);
-  if(max[1]>=3) lines.push(`💪 ${max[0]}旺（${max[1]}个），为最强五行`);
+  const [maxWx, maxC] = counts[0];
+  const [minWx, minC] = counts[counts.length-1];
+  lines.push(`📊 五行：${Object.entries(elements).map(([k,v])=>k+v).join('：')}`);
+  if(minC===0) lines.push(`⚠️ 缺${minWx}，可补${minWx}平衡`);
+  if(maxC>=3) lines.push(`💪 ${maxWx}旺（${maxC}个），居主导`);
   
-  // 日主分析
-  lines.push(`日主${日干}属${日主五行}，生于${parseInt(document.getElementById('year').value)}年${parseInt(document.getElementById('month').value)}月${parseInt(document.getElementById('day').value)}日`);
+  // ── 十神透干 ──
+  const ssList = pillars.map((p,i)=>i===2?'日元':calcShiShen(日干, p.gan));
+  lines.push(`🔤 十神：${ssList.join(' · ')}`);
   
-  // 午午自刑检测
-  if(pillars[0].zhi==='午' && pillars[2].zhi==='午'){
-    lines.push(`🔥 午午自刑格局：年日双午，心火上浮。宜静养心神，咖啡壮火食气，建议绿茶/菊花茶。`);
+  // 十神组合解读
+  const ssCount = {};
+  for(const s of ssList) if(s!=='日元') ssCount[s] = (ssCount[s]||0)+1;
+  const ssLines = [];
+  if((ssCount['比肩']||0)+(ssCount['劫财']||0)>=2) ssLines.push('比劫重 → 独立性强，社交广，易竞争');
+  if((ssCount['食神']||0)+(ssCount['伤官']||0)>=2) ssLines.push('食伤重 → 才华外露，有创意，口才好');
+  if((ssCount['正财']||0)+(ssCount['偏财']||0)>=2) ssLines.push('财星重 → 务实，重物质，有商业头脑');
+  if((ssCount['正官']||0)+(ssCount['七杀']||0)>=2) ssLines.push('官杀重 → 责任心强，压力大，有管理潜力');
+  if((ssCount['正印']||0)+(ssCount['偏印']||0)>=2) ssLines.push('印星重 → 好学深思，内向稳健');
+  if(ssList[3]==='七杀') ssLines.push('七杀透时 → 有魄力，晚成之象，关键时刻敢下决断');
+  if(ssList[3]==='正官') ssLines.push('正官透时 → 晚年有地位，行事端正');
+  if(ssList[0]==='七杀'||ssList[0]==='偏财') ssLines.push('年干透杀/偏财 → 祖上白手起家');
+  for(const l of ssLines) lines.push(`🧩 ${l}`);
+  
+  // ── 地支关系 ──
+  // 六冲
+  const 六冲表 = {子:'午',午:'子',丑:'未',未:'丑',寅:'申',申:'寅',卯:'酉',酉:'卯',辰:'戌',戌:'辰',巳:'亥',亥:'巳'};
+  for(let i=0;i<4;i++){
+    for(let j=i+1;j<4;j++){
+      if(六冲表[allZhi[i]]===allZhi[j]){
+        const names = ['年','月','日','时'];
+        lines.push(`⚡ ${names[i]}${names[j]}相冲（${allZhi[i]}${allZhi[j]}冲）`);
+      }
+    }
   }
   
-  // 简单格局
-  const 年干 = pillars[0].gan;
-  const 月干 = pillars[1].gan;
-  const 时干 = pillars[3].gan;
+  // 自刑
+  const 自刑支 = ['辰','午','酉','亥'];
+  for(let i=0;i<4;i++){
+    for(let j=i+1;j<4;j++){
+      if(allZhi[i]===allZhi[j] && 自刑支.includes(allZhi[i])){
+        const names = ['年','月','日','时'];
+        if(allZhi[i]==='午') lines.push(`🔥 ${names[i]}${names[j]}午午自刑 → 心火上浮，咖啡壮火食气，宜绿茶/菊花茶`);
+        else if(allZhi[i]==='辰') lines.push(`⛰️ ${names[i]}${names[j]}辰辰自刑 → 固执己见，需灵活变通`);
+        else if(allZhi[i]==='酉') lines.push(`⚔️ ${names[i]}${names[j]}酉酉自刑 → 自我要求高，易自责`);
+        else if(allZhi[i]==='亥') lines.push(`💧 ${names[i]}${names[j]}亥亥自刑 → 思绪纷杂，注意内耗`);
+      }
+    }
+  }
   
-  if(日干===年干 && 日干===月干) lines.push(`📌 三干同元格局，自我意识强烈，适合独立型工作。`);
-  if(月干===时干) lines.push(`📌 月时伏吟，主内心有反复，重大决策需三思。`);
+  // 三刑
+  const zhiSet = new Set(allZhi);
+  if(zhiSet.has('寅') && zhiSet.has('巳') && zhiSet.has('申')) lines.push(`⚡ 寅巳申三刑 → 人事复杂，需注意口舌是非`);
+  if(zhiSet.has('丑') && zhiSet.has('戌') && zhiSet.has('未')) lines.push(`⚡ 丑戌未三刑 → 六亲缘薄，注意肠胃健康`);
+  if(allZhi.includes('子') && allZhi.includes('卯')) lines.push(`⚡ 子卯相刑（无礼之刑）→ 不拘小节，需注意言行`);
   
-  // 十神组合
-  const 十神列表 = pillars.map((p,i)=>i===2?'日元':calcShiShen(日干, p.gan));
-  lines.push(`十神组合：${十神列表.join(' · ')}`);
+  // 六合
+  const 六合表 = {子:'丑',丑:'子',寅:'亥',亥:'寅',卯:'戌',戌:'卯',辰:'酉',酉:'辰',巳:'申',申:'巳',午:'未',未:'午'};
+  for(let i=0;i<4;i++){
+    for(let j=i+1;j<4;j++){
+      if(六合表[allZhi[i]]===allZhi[j]){
+        const names = ['年','月','日','时'];
+        lines.push(`🤝 ${names[i]}${names[j]}六合（${allZhi[i]}${allZhi[j]}合）`);
+      }
+    }
+  }
+  
+  // 半三合
+  const 半合 = {
+    '申子':'水','子辰':'水','亥卯':'木','卯未':'木',
+    '寅午':'火','午戌':'火','巳酉':'金','酉丑':'金'
+  };
+  for(let i=0;i<4;i++){
+    for(let j=i+1;j<4;j++){
+      const key = [allZhi[i],allZhi[j]].sort().join('');
+      if(半合[key]){
+        const names = ['年','月','日','时'];
+        lines.push(`🔗 ${names[i]}${names[j]}半合${半合[key]}局`);
+      }
+    }
+  }
+  
+  // 暗合（比如寅丑暗合）
+  const 暗合表 = {寅:'丑',丑:'寅',午:'亥',亥:'午'};
+  for(let i=0;i<4;i++){
+    for(let j=i+1;j<4;j++){
+      if(暗合表[allZhi[i]]===allZhi[j]){
+        const names = ['年','月','日','时'];
+        lines.push(`🔍 ${names[i]}${names[j]}暗合`);
+      }
+    }
+  }
+  
+  // ── 旺衰结论 ──
+  // 调候: 月令判断寒暖
+  const 月令 = 月支;
+  const coldMonths = ['亥','子','丑'];
+  const hotMonths = ['巳','午','未'];
+  if(coldMonths.includes(月令)) lines.push(`🌡️ 生于寒冬月，喜火暖局（丙丁巳午）`);
+  if(hotMonths.includes(月令)) lines.push(`🌡️ 生于炎夏月，喜水调候`);
+  
+  // 日主强弱
+  const 生我 = {金:'土',木:'水',水:'金',火:'木',土:'火'}[日主五行];
+  const 同我 = 日主五行;
+  const strength = elements[日主五行] + (elements[生我]||0);
+  const isStrong = strength >= 4;
+  lines.push(`🏋️ 日主${日干}（${日主五行}），地支${elements[日主五行]}个${日主五行}+${elements[生我]||0}个${生我}生 → ${isStrong ? '身强' : strength>=3 ? '中和' : '身弱'}`);
+  lines.push(`🎯 喜用神：${isStrong ? '克泄（'+{金:'火木',木:'金土',水:'土火',火:'水金',土:'木水'}[日主五行]+'）' : '生扶（'+{金:'土金',木:'水木',水:'金水',火:'木火',土:'火土'}[日主五行]+'）'}`);
   
   // 大运提示
-  lines.push(`📊 ${counts[0][0]}旺为命局基调，大运走${counts[0][0]}运或制${counts[0][0]}之运为关键转折。`);
+  const 最强元素 = maxWx;
+  const 克最强 = {金:'火',木:'金',水:'土',火:'水',土:'木'}[最强元素];
+  const 生最强 = {金:'土',木:'水',水:'金',火:'木',土:'火'}[最强元素];
+  lines.push(`📈 全局${最强元素}旺为基调，大运遇${克最强}（制）或${最强元素}（扶）为关键转折`);
   
   container.innerHTML = lines.join('<br>');
 }
